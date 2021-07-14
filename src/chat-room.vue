@@ -1,45 +1,50 @@
 <template>
 	<div class="room-wrapper">
-		<div class="settings-row">
-			Usual list
-			<switch-button
-				class="lightlist-switcher"
-				v-model="lightListEnabled"
-				@input="onSwitchMode()"
-			/>
-			Light list
-		</div>
-		<div class="settings-row">
-			Count of rows
-			<input
-				class="row-count"
-				v-model="rowCount"
-				@keydown.enter="updateMessageList()"
-				autofocus
-			/>
-		</div>
-		<div class="settings-row reload-button-wrapper">
-			<button
-				class="button-reload"
-				title="Create new message list" 
-				@click="updateMessageList()">
-				↻ Spent {{ lastReloadTime }} ms to render the list with {{ messages.length }} messages. Click to measure again
-			</button>
+		<div class="settings-wrapper">
+			<div class="settings-row">
+				Usual list
+				<switch-button
+					class="lightlist-switcher"
+					v-model="lightListEnabled"
+					:disabled="!areHeightsInitialized"
+					:title="disabledSwitchTitle"
+					@input="onSwitchMode()"
+				/>
+				Light list
+			</div>
+			<div class="settings-row">
+				Count of rows
+				<input
+					class="row-count"
+					v-model="rowCount"
+					@keydown.enter="updateMessageList()"
+					autofocus
+				/>
+			</div>
+			<div class="settings-row reload-button-wrapper">
+				<button
+					class="button-reload"
+					title="Create new message list" 
+					@click="updateMessageList()">
+					↻ Spent {{ lastReloadTime }} ms to render the list with {{ messages.length }} messages. Click to measure again
+				</button>
+			</div>
 		</div>
 		<div
 			ref="scrollArea"
 			class="message-list-wrapper"
 			@scroll="onScroll"
 		>
-			<div :style="topStubStyle"></div>
+			<div v-if="isStubShown" :style="topStubStyle"></div>
 			<message-row
+				class="list-element"
 				v-for="{ id, text, userName } in visibleMessages"
 				:key="id"
 				:userName="userName"
 				:text="text"
 				@remove="remove(id)"
 			/>
-			<div :style="bottomStubStyle"></div>
+			<div v-if="isStubShown" :style="bottomStubStyle"></div>
 		</div>
 	</div>
 </template>
@@ -59,29 +64,41 @@ export default class ChatRoom extends Vue {
 
 	private timeTracker: number = null;
 
-	// Expected that we know the row height and it's the same for all rows. The value can be dynamic.
-	private rowHeight = 58;
-
+	private rowHeight = 0;
 	private scrollAreaHeight = 0;
 	private scrollTop = 0;
 
+	public get isStubShown() {
+		return this.lightListEnabled && !this.isEmptyList && this.areHeightsInitialized;
+	}
+
 	public get topStubStyle() {
-		if (!this.lightListEnabled) {
+		if (!this.isStubShown) {
 			return null;
 		}
 
+		let height = this.hiddenElementsCount * this.rowHeight;
+		if (height < 0) {
+			height = 0;
+		}
+
 		return {
-			height: this.hiddenElementsCount * this.rowHeight + 'px',
+			height: `${height}px`,
 		}
 	}
 
 	public get bottomStubStyle() {
-		if (!this.lightListEnabled) {
+		if (!this.isStubShown) {
 			return null;
 		}
 
+		let height = (this.messages.length - this.hiddenElementsCount - this.visibleElementsCount) * this.rowHeight;
+		if (height < 0) {
+			height = 0;
+		}
+
 		return {
-			height: (this.messages.length - this.hiddenElementsCount - this.visibleElementsCount) * this.rowHeight + 'px',
+			height: `${height}px`,
 		}
 	}
 
@@ -89,6 +106,18 @@ export default class ChatRoom extends Vue {
 		return this.lightListEnabled
 			? this.messages.slice(this.hiddenElementsCount, this.hiddenElementsCount + this.visibleElementsCount)
 			: this.messages;
+	}
+
+	public get isEmptyList() {
+		return this.messages.length === 0;
+	}
+
+	public get areHeightsInitialized() {
+		return this.rowHeight > 0 && this.scrollAreaHeight > 0;
+	}
+
+	public get disabledSwitchTitle() {
+		return !this.areHeightsInitialized ? 'Switching is disabled until at least one item in the list is rendered' : null;
 	}
 
 	private get visibleElementsCount() {
@@ -99,9 +128,20 @@ export default class ChatRoom extends Vue {
 		return Math.floor(this.scrollTop / this.rowHeight);
 	}
 
-	public mounted() {
+	public async mounted() {
 		this.updateMessageList();
-		this.scrollAreaHeight = (this.$refs.scrollArea as HTMLElement).clientHeight;
+
+		await this.$nextTick();
+		if (this.isEmptyList) {
+			const unwatch = this.$watch(() => this.isEmptyList, () => {
+				if (!this.lightListEnabled && !this.isEmptyList) {
+					this.initHeights();
+					unwatch();
+				}
+			});
+		} else {
+			this.initHeights();
+		}
 	}
 
 	public async updateMessageList() {
@@ -128,17 +168,34 @@ export default class ChatRoom extends Vue {
 			this.messages.splice(index, 1);
 		}
 	}
+
+	private initHeights() {
+		const listWrapper = this.$refs.scrollArea as HTMLElement;
+		this.scrollAreaHeight = listWrapper.clientHeight;
+		this.rowHeight = listWrapper.querySelector('.list-element').clientHeight;
+	}
 }
 </script>
 
 <style lang="less">
 @import "./styles/variables.less";
 
+html,
+body {
+	height: 100%;
+	margin: 0;
+}
+
 .room-wrapper {
 	font-family: Verdana,Arial,sans-serif;
 	margin: 0 auto;
 	width: 100%;
+	min-width: 250px;
 	max-width: 600px;
+	display: flex;
+	flex-flow: column;
+	height: 100%;
+	overflow-x: auto;
 }
 
 .message-list-wrapper {
@@ -147,26 +204,46 @@ export default class ChatRoom extends Vue {
 	border: 1px solid @white-off;
 	padding: 0 20px;
 	font-size: 12px;
+	flex: 1 1 auto;
+
+	&:empty::after {
+		content: 'no messages';
+		text-align: center;
+		width: 100%;
+		display: block;
+		margin: 10px 0;
+		font-size: 16px;
+		color: @light-gray;
+	}
 }
 
 .lightlist-switcher {
 	margin: 0 10px;
 }
 
-.settings-row {
-	text-align: center;
-	margin-bottom: 20px;
+.settings-wrapper {
+	@margin: 10px;
+	margin: @margin 0;
 
-	.button-reload {
-		background: none;
-		border: 1px solid @light-gray;
-		width: 100%;
-		padding: 5px;
-		cursor: pointer;
-		font-size: 16px;
+	.settings-row {
+		text-align: center;
+		margin-bottom: @margin;
 
-		&:hover {
-			background-color: @white-off;
+		.button-reload {
+			background: none;
+			border: 1px solid @light-gray;
+			width: 100%;
+			padding: 5px;
+			cursor: pointer;
+			font-size: 16px;
+
+			&:hover {
+				background-color: @white-off;
+			}
+		}
+
+		&:last-child {
+			margin-bottom: 0;
 		}
 	}
 }
@@ -178,5 +255,7 @@ export default class ChatRoom extends Vue {
 	outline: none;
     border-radius: 5px;
     padding: 5px;
+    box-sizing: border-box;
+    height: 25px;
 }
 </style>

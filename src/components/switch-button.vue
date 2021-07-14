@@ -1,6 +1,13 @@
 <template>
-	<label class="switch">
-		<input type="checkbox" v-model="checked" />
+	<label
+		class="switch"
+		:class="switchClasses"
+	>
+		<input
+			type="checkbox"
+			v-model="checked"
+			:disabled="disabled"
+		/>
 		<span class="slider"></span>
 	</label>
 </template>
@@ -13,12 +20,23 @@ export default class SwitchButton extends Vue {
 	@Prop({ type: Boolean, required: true })
 	public value: boolean;
 
+	@Prop({ type: Boolean, default: false })
+	public disabled: boolean;
+
+	public get switchClasses() {
+		return {
+			'switch__disabled': this.disabled,
+		}
+	}
+
 	public get checked() {
 		return this.value;
 	}
 
 	public set checked(value: boolean) {
-		this.$emit('input', value);
+		if (!this.disabled) {
+			this.$emit('input', value);
+		}
 	}
 }
 </script>
@@ -37,8 +55,11 @@ export default class SwitchButton extends Vue {
 		width: 0;
 		height: 0;
 	}
-}
 
+	&.switch__disabled {
+		opacity: 0.5;
+	}
+}
 
 .slider {
 	position: absolute;

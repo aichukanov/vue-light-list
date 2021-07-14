@@ -34,12 +34,15 @@ export default class MessageRow extends Vue {
 @message-background: #fafcfd;
 
 .message__wrapper {
+	display: flex;
+	align-items: flex-end;
 	width: 100%;
 	padding: 3px 5px;
     box-sizing: border-box;
 	position: relative;
 
 	.message__text {
+		flex: 0 1 auto;
 		position: relative;
 		display: inline-block;
 		color: @black;
@@ -82,15 +85,16 @@ export default class MessageRow extends Vue {
 			vertical-align: top;
 			background: none;
 			border: none;
-			color: @gray;
+			color: @light-gray;
 			display: none;
+			font-size: 10px;
 		}
 
 		&:hover .message__remove {
 			display: block;
 
 			&:hover {
-				color: @black;
+				color: @gray;
 				cursor: pointer;
 			}
 		}

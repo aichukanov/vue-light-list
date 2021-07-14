@@ -27,8 +27,8 @@ export default class UserAvatar extends Vue {
 @size: 35px;
 
 .message__user-avatar {
-	display: inline-block;
-	border-radius: 1000px;
+	flex: 0 0 @size;
+	border-radius: 50%;
 	font-size: 12px;
 	width: @size;
 	height: @size;
