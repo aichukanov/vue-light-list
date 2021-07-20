@@ -5,7 +5,7 @@ Render only part of the list and stub other items.
 
 Look at the code to see how I did it
 
-[live demo](https://aichukanov.github.io/vue-light-list/)
+Live demo - https://aichukanov.github.io/vue-light-list/
 
 ## Project setup
 ```
